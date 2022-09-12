@@ -1,3 +1,12 @@
+import logging
+
+# We configure how logging messages should be displayed and which log level should be used before importing Haystack.
+# Example log message:
+# INFO - haystack.utils.preprocessing -  Converting data/tutorial1/218_Olenna_Tyrell.txt
+# Default log level in basicConfig is WARNING so the explicit parameter is not necessary but can be changed easily:
+logging.basicConfig(format="%(levelname)s - %(name)s -  %(message)s", level=logging.WARNING)
+logging.getLogger("haystack").setLevel(logging.INFO)
+
 from typing import List
 import requests
 import pandas as pd
@@ -16,7 +25,7 @@ def tutorial7_rag_generator():
     fetch_archive_from_http(url=s3_url, output_dir=doc_dir)
 
     # Get dataframe with columns "title", and "text"
-    df = pd.read_csv("small_generator_dataset.csv", sep=",")
+    df = pd.read_csv(f"{doc_dir}/small_generator_dataset.csv", sep=",")
     # Minimal cleaning
     df.fillna(value="", inplace=True)
 

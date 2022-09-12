@@ -1,4 +1,6 @@
-from typing import Generator, Optional, Dict, List, Set, Union
+# pylint: disable=too-many-public-methods
+
+from typing import Generator, Optional, Dict, List, Set, Union, Any
 
 import logging
 import collections
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 try:
     from numba import njit  # pylint: disable=import-error
 except (ImportError, ModuleNotFoundError):
-    logger.info("Numba not found, replacing njit() with no-op implementation. Enable it with 'pip install numba'.")
+    logger.debug("Numba not found, replacing njit() with no-op implementation. Enable it with 'pip install numba'.")
 
     def njit(f):
         return f
@@ -43,6 +45,9 @@ class BaseKnowledgeGraph(BaseComponent):
         output = {"sparql_result": result}
         return output, "output_1"
 
+    def run_batch(self):
+        raise NotImplementedError("run_batch is not implemented for KnowledgeGraphs.")
+
     @abstractmethod
     def query(self, sparql_query: str, index: Optional[str] = None, headers: Optional[Dict[str, str]] = None):
         raise NotImplementedError
@@ -52,6 +57,8 @@ class BaseDocumentStore(BaseComponent):
     """
     Base class for implementing Document Stores.
     """
+
+    outgoing_edges: int = 1
 
     index: Optional[str]
     label_index: Optional[str]
@@ -565,6 +572,33 @@ class BaseDocumentStore(BaseComponent):
         self.write_documents(documents=doc_objects, index=index, headers=headers)
         return {}, "output_1"
 
+    def run_batch(  # type: ignore
+        self,
+        documents: List[Union[dict, Document]],
+        index: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        id_hash_keys: Optional[List[str]] = None,
+    ):
+        return self.run(documents=documents, index=index, headers=headers, id_hash_keys=id_hash_keys)
+
+    def describe_documents(self, index=None):
+        """
+        Return a summary of the documents in the document store
+        """
+        if index is None:
+            index = self.index
+        docs = self.get_all_documents(index)
+
+        l = [len(d.content) for d in docs]
+        stats = {
+            "count": len(docs),
+            "chars_mean": np.mean(l),
+            "chars_max": max(l),
+            "chars_min": min(l),
+            "chars_median": np.median(l),
+        }
+        return stats
+
     @abstractmethod
     def get_documents_by_id(
         self,
@@ -575,11 +609,16 @@ class BaseDocumentStore(BaseComponent):
     ) -> List[Document]:
         pass
 
-    def _drop_duplicate_documents(self, documents: List[Document]) -> List[Document]:
+    @abstractmethod
+    def update_document_meta(self, id: str, meta: Dict[str, Any], index: str = None):
+        pass
+
+    def _drop_duplicate_documents(self, documents: List[Document], index: Optional[str] = None) -> List[Document]:
         """
         Drop duplicates documents based on same hash ID
 
         :param documents: A list of Haystack Document objects.
+        :param index: name of the index
         :return: A list of Haystack Document objects.
         """
         _hash_ids: Set = set([])
@@ -588,7 +627,8 @@ class BaseDocumentStore(BaseComponent):
         for document in documents:
             if document.id in _hash_ids:
                 logger.info(
-                    f"Duplicate Documents: Document with id '{document.id}' already exists in index " f"'{self.index}'"
+                    f"Duplicate Documents: Document with id '{document.id}' already exists in index "
+                    f"'{index or self.index}'"
                 )
                 continue
             _documents.append(document)
@@ -608,6 +648,7 @@ class BaseDocumentStore(BaseComponent):
         documents that are not in the index yet.
 
         :param documents: A list of Haystack Document objects.
+        :param index: name of the index
         :param duplicate_documents: Handle duplicates document based on parameter options.
                                     Parameter options : ( 'skip','overwrite','fail')
                                     skip (default option): Ignore the duplicates documents
@@ -620,7 +661,7 @@ class BaseDocumentStore(BaseComponent):
 
         index = index or self.index
         if duplicate_documents in ("skip", "fail"):
-            documents = self._drop_duplicate_documents(documents)
+            documents = self._drop_duplicate_documents(documents, index)
             documents_found = self.get_documents_by_id(ids=[doc.id for doc in documents], index=index, headers=headers)
             ids_exist_in_db: List[str] = [doc.id for doc in documents_found]
 
@@ -756,6 +797,110 @@ class KeywordDocumentStore(BaseDocumentStore):
                             If true (default) similarity scores (e.g. cosine or dot_product) which naturally have a different value range will be scaled to a range of [0,1], where 1 means extremely relevant.
                             Otherwise raw similarity scores (e.g. cosine or dot_product) will be used.
         """
+        pass
+
+    @abstractmethod
+    def query_batch(
+        self,
+        queries: List[str],
+        filters: Optional[
+            Union[
+                Dict[str, Union[Dict, List, str, int, float, bool]],
+                List[Dict[str, Union[Dict, List, str, int, float, bool]]],
+            ]
+        ] = None,
+        top_k: int = 10,
+        custom_query: Optional[str] = None,
+        index: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        all_terms_must_match: bool = False,
+        scale_score: bool = True,
+    ) -> List[List[Document]]:
+        """
+        Scan through documents in DocumentStore and return a small number documents
+        that are most relevant to the provided queries as defined by keyword matching algorithms like BM25.
+
+        This method lets you find relevant documents for a single query string (output: List of Documents), or a
+        a list of query strings (output: List of Lists of Documents).
+
+        :param queries: Single query or list of queries.
+        :param filters: Optional filters to narrow down the search space to documents whose metadata fulfill certain
+                        conditions.
+                        Filters are defined as nested dictionaries. The keys of the dictionaries can be a logical
+                        operator (`"$and"`, `"$or"`, `"$not"`), a comparison operator (`"$eq"`, `"$in"`, `"$gt"`,
+                        `"$gte"`, `"$lt"`, `"$lte"`) or a metadata field name.
+                        Logical operator keys take a dictionary of metadata field names and/or logical operators as
+                        value. Metadata field names take a dictionary of comparison operators as value. Comparison
+                        operator keys take a single value or (in case of `"$in"`) a list of values as value.
+                        If no logical operator is provided, `"$and"` is used as default operation. If no comparison
+                        operator is provided, `"$eq"` (or `"$in"` if the comparison value is a list) is used as default
+                        operation.
+
+                            __Example__:
+                            ```python
+                            filters = {
+                                "$and": {
+                                    "type": {"$eq": "article"},
+                                    "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
+                                    "rating": {"$gte": 3},
+                                    "$or": {
+                                        "genre": {"$in": ["economy", "politics"]},
+                                        "publisher": {"$eq": "nytimes"}
+                                    }
+                                }
+                            }
+                            # or simpler using default operators
+                            filters = {
+                                "type": "article",
+                                "date": {"$gte": "2015-01-01", "$lt": "2021-01-01"},
+                                "rating": {"$gte": 3},
+                                "$or": {
+                                    "genre": ["economy", "politics"],
+                                    "publisher": "nytimes"
+                                }
+                            }
+                            ```
+
+                            To use the same logical operator multiple times on the same level, logical operators take
+                            optionally a list of dictionaries as value.
+
+                            __Example__:
+                            ```python
+                            filters = {
+                                "$or": [
+                                    {
+                                        "$and": {
+                                            "Type": "News Paper",
+                                            "Date": {
+                                                "$lt": "2019-01-01"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "$and": {
+                                            "Type": "Blog Post",
+                                            "Date": {
+                                                "$gte": "2019-01-01"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                            ```
+
+        :param top_k: How many documents to return per query.
+        :param custom_query: Custom query to be executed.
+        :param index: The name of the index in the DocumentStore from which to retrieve documents
+        :param headers: Custom HTTP headers to pass to document store client if supported (e.g. {'Authorization': 'Basic YWRtaW46cm9vdA=='} for basic authentication)
+        :param all_terms_must_match: Whether all terms of the query must match the document.
+                                     If true all query terms must be present in a document in order to be retrieved (i.e the AND operator is being used implicitly between query terms: "cozy fish restaurant" -> "cozy AND fish AND restaurant").
+                                     Otherwise at least one query term must be present in a document in order to be retrieved (i.e the OR operator is being used implicitly between query terms: "cozy fish restaurant" -> "cozy OR fish OR restaurant").
+                                     Defaults to False.
+        :param scale_score: Whether to scale the similarity score to the unit interval (range of [0,1]).
+                            If true (default) similarity scores (e.g. cosine or dot_product) which naturally have a different value range will be scaled to a range of [0,1], where 1 means extremely relevant.
+                            Otherwise raw similarity scores (e.g. cosine or dot_product) will be used.
+        """
+        pass
 
 
 def get_batches_from_generator(iterable, n):

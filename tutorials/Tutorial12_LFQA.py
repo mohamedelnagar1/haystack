@@ -1,3 +1,12 @@
+import logging
+
+# We configure how logging messages should be displayed and which log level should be used before importing Haystack.
+# Example log message:
+# INFO - haystack.utils.preprocessing -  Converting data/tutorial1/218_Olenna_Tyrell.txt
+# Default log level in basicConfig is WARNING so the explicit parameter is not necessary but can be changed easily:
+logging.basicConfig(format="%(levelname)s - %(name)s -  %(message)s", level=logging.WARNING)
+logging.getLogger("haystack").setLevel(logging.INFO)
+
 from haystack.utils import convert_files_to_docs, fetch_archive_from_http, clean_wiki_text
 from haystack.nodes import Seq2SeqGenerator
 
@@ -36,7 +45,7 @@ def tutorial12_lfqa():
     document_store.write_documents(docs)
 
     """
-    Initalize Retriever and Reader/Generator:
+    Initialize Retriever and Reader/Generator:
     We use a `DensePassageRetriever` and we invoke `update_embeddings` to index the embeddings of documents in the `FAISSDocumentStore`
     """
 

@@ -12,7 +12,7 @@ class BaseDocumentClassifier(BaseComponent)
 
 <a id="base.BaseDocumentClassifier.timing"></a>
 
-#### timing
+#### BaseDocumentClassifier.timing
 
 ```python
 def timing(fn, attr_name)
@@ -81,10 +81,22 @@ With this document_classifier, you can directly get predictions via predict()
 
 <a id="transformers.TransformersDocumentClassifier.__init__"></a>
 
-#### \_\_init\_\_
+#### TransformersDocumentClassifier.\_\_init\_\_
 
 ```python
-def __init__(model_name_or_path: str = "bhadresh-savani/distilbert-base-uncased-emotion", model_version: Optional[str] = None, tokenizer: Optional[str] = None, use_gpu: bool = True, return_all_scores: bool = False, task: str = "text-classification", labels: Optional[List[str]] = None, batch_size: int = -1, classification_field: str = None)
+def __init__(model_name_or_path:
+             str = "bhadresh-savani/distilbert-base-uncased-emotion",
+             model_version: Optional[str] = None,
+             tokenizer: Optional[str] = None,
+             use_gpu: bool = True,
+             return_all_scores: bool = False,
+             task: str = "text-classification",
+             labels: Optional[List[str]] = None,
+             batch_size: int = 16,
+             classification_field: str = None,
+             progress_bar: bool = True,
+             use_auth_token: Optional[Union[str, bool]] = None,
+             devices: Optional[List[Union[str, torch.device]]] = None)
 ```
 
 Load a text classification model from Transformers.
@@ -114,15 +126,50 @@ See https://huggingface.co/models for full list of available models.
 ["positive", "negative"] otherwise None. Given a LABEL, the sequence fed to the model is "<cls> sequence to
 classify <sep> This example is LABEL . <sep>" and the model predicts whether that sequence is a contradiction
 or an entailment.
-- `batch_size`: batch size to be processed at once
+- `batch_size`: Number of Documents to be processed at a time.
 - `classification_field`: Name of Document's meta field to be used for classification. If left unset, Document.content is used by default.
+- `progress_bar`: Whether to show a progress bar while processing.
+- `use_auth_token`: The API token used to download private models from Huggingface.
+If this parameter is set to `True`, then the token generated when running
+`transformers-cli login` (stored in ~/.huggingface) will be used.
+Additional information can be found here
+https://huggingface.co/transformers/main_classes/model.html#transformers.PreTrainedModel.from_pretrained
+- `devices`: List of torch devices (e.g. cuda, cpu, mps) to limit inference to specific devices.
+A list containing torch device objects and/or strings is supported (For example
+[torch.device('cuda:0'), "mps", "cuda:1"]). When specifying `use_gpu=False` the devices
+parameter is not used and a single cpu device is used for inference.
 
 <a id="transformers.TransformersDocumentClassifier.predict"></a>
 
-#### predict
+#### TransformersDocumentClassifier.predict
 
 ```python
-def predict(documents: List[Document]) -> List[Document]
+def predict(documents: List[Document],
+            batch_size: Optional[int] = None) -> List[Document]
+```
+
+Returns documents containing classification result in a meta field.
+
+Documents are updated in place.
+
+**Arguments**:
+
+- `documents`: A list of Documents to classify.
+- `batch_size`: The number of Documents to classify at a time.
+
+**Returns**:
+
+A list of Documents enriched with meta information.
+
+<a id="transformers.TransformersDocumentClassifier.predict_batch"></a>
+
+#### TransformersDocumentClassifier.predict\_batch
+
+```python
+def predict_batch(
+    documents: Union[List[Document], List[List[Document]]],
+    batch_size: Optional[int] = None
+) -> Union[List[Document], List[List[Document]]]
 ```
 
 Returns documents containing classification result in meta field.
@@ -131,9 +178,10 @@ Documents are updated in place.
 
 **Arguments**:
 
-- `documents`: List of Document to classify
+- `documents`: List of Documents or list of lists of Documents to classify.
+- `batch_size`: Number of Documents to classify at a time.
 
 **Returns**:
 
-List of Document enriched with meta information
+List of Documents or list of lists of Documents enriched with meta information.
 

@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 import os
 import logging
@@ -58,8 +58,8 @@ class PDFToTextConverter(BaseConverter):
                 """pdftotext is not installed. It is part of xpdf or poppler-utils software suite.
                 
                    Installation on Linux:
-                   wget --no-check-certificate https://dl.xpdfreader.com/xpdf-tools-linux-4.03.tar.gz &&
-                   tar -xvf xpdf-tools-linux-4.03.tar.gz && sudo cp xpdf-tools-linux-4.03/bin64/pdftotext /usr/local/bin
+                   wget --no-check-certificate https://dl.xpdfreader.com/xpdf-tools-linux-4.04.tar.gz &&
+                   tar -xvf xpdf-tools-linux-4.04.tar.gz && sudo cp xpdf-tools-linux-4.04/bin64/pdftotext /usr/local/bin
                    
                    Installation on MacOS:
                    brew install xpdf
@@ -74,7 +74,7 @@ class PDFToTextConverter(BaseConverter):
     def convert(
         self,
         file_path: Path,
-        meta: Optional[Dict[str, str]] = None,
+        meta: Optional[Dict[str, Any]] = None,
         remove_numeric_tables: Optional[bool] = None,
         valid_languages: Optional[List[str]] = None,
         encoding: Optional[str] = None,
@@ -169,8 +169,8 @@ class PDFToTextConverter(BaseConverter):
         if not encoding:
             encoding = self.encoding
 
-        command = f"pdftotext -enc {encoding} {'-layout ' if layout else ''}{str(file_path)} -".split()
-        output = subprocess.run(command, stdout=subprocess.PIPE, shell=False)
+        command = ["pdftotext", "-enc", str(encoding), "-layout" if layout else "-raw", str(file_path), "-"]
+        output = subprocess.run(command, stdout=subprocess.PIPE, shell=False, check=False)
         document = output.stdout.decode(errors="ignore")
         pages = document.split("\f")
         pages = pages[:-1]  # the last page in the split is always empty.
@@ -212,10 +212,10 @@ class PDFToTextOCRConverter(BaseConverter):
     def convert(
         self,
         file_path: Path,
-        meta: Optional[Dict[str, str]] = None,
+        meta: Optional[Dict[str, Any]] = None,
         remove_numeric_tables: Optional[bool] = None,
         valid_languages: Optional[List[str]] = None,
-        encoding: Optional[str] = "UTF-8",
+        encoding: Optional[str] = None,
         id_hash_keys: Optional[List[str]] = None,
     ) -> List[Document]:
         """
@@ -236,7 +236,7 @@ class PDFToTextOCRConverter(BaseConverter):
                                 This option can be used to add test for encoding errors. If the extracted text is
                                 not one of the valid languages, then it might likely be encoding error resulting
                                 in garbled text.
-        :param encoding: Select the file encoding (default is `UTF-8`)
+        :param encoding: Not applicable
         :param id_hash_keys: Generate the document id from a custom list of strings that refer to the document's
             attributes. If you want to ensure you don't have duplicate documents in your DocumentStore but texts are
             not unique, you can modify the metadata and pass e.g. `"meta"` to this field (e.g. [`"content"`, `"meta"`]).
@@ -251,7 +251,7 @@ class PDFToTextOCRConverter(BaseConverter):
             for image in images:
                 temp_img = tempfile.NamedTemporaryFile(dir=os.path.dirname(os.path.realpath(__file__)), suffix=".jpeg")
                 image.save(temp_img.name)
-                pages.append(self.image_2_text.convert(file_path=temp_img.name, encoding=encoding)[0].content)
+                pages.append(self.image_2_text.convert(file_path=temp_img.name)[0].content)
         except Exception as exception:
             logger.error(f"File {file_path} has an error \n {exception}")
 

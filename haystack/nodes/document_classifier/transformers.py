@@ -1,6 +1,9 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 import logging
+import itertools
 
+import torch
+from tqdm.auto import tqdm
 from transformers import pipeline
 
 from haystack.schema import Document
@@ -70,8 +73,11 @@ class TransformersDocumentClassifier(BaseDocumentClassifier):
         return_all_scores: bool = False,
         task: str = "text-classification",
         labels: Optional[List[str]] = None,
-        batch_size: int = -1,
+        batch_size: int = 16,
         classification_field: str = None,
+        progress_bar: bool = True,
+        use_auth_token: Optional[Union[str, bool]] = None,
+        devices: Optional[List[Union[str, torch.device]]] = None,
     ):
         """
         Load a text classification model from Transformers.
@@ -98,8 +104,18 @@ class TransformersDocumentClassifier(BaseDocumentClassifier):
         ["positive", "negative"] otherwise None. Given a LABEL, the sequence fed to the model is "<cls> sequence to
         classify <sep> This example is LABEL . <sep>" and the model predicts whether that sequence is a contradiction
         or an entailment.
-        :param batch_size: batch size to be processed at once
+        :param batch_size: Number of Documents to be processed at a time.
         :param classification_field: Name of Document's meta field to be used for classification. If left unset, Document.content is used by default.
+        :param progress_bar: Whether to show a progress bar while processing.
+        :param use_auth_token: The API token used to download private models from Huggingface.
+                               If this parameter is set to `True`, then the token generated when running
+                               `transformers-cli login` (stored in ~/.huggingface) will be used.
+                               Additional information can be found here
+                               https://huggingface.co/transformers/main_classes/model.html#transformers.PreTrainedModel.from_pretrained
+        :param devices: List of torch devices (e.g. cuda, cpu, mps) to limit inference to specific devices.
+                        A list containing torch device objects and/or strings is supported (For example
+                        [torch.device('cuda:0'), "mps", "cuda:1"]). When specifying `use_gpu=False` the devices
+                        parameter is not used and a single cpu device is used for inference.
         """
         super().__init__()
 
@@ -109,51 +125,68 @@ class TransformersDocumentClassifier(BaseDocumentClassifier):
                 f"zero-shot-classification to use labels."
             )
 
-        devices, _ = initialize_device_settings(use_cuda=use_gpu, multi_gpu=False)
-        device = 0 if devices[0].type == "cuda" else -1
+        resolved_devices, _ = initialize_device_settings(devices=devices, use_cuda=use_gpu, multi_gpu=False)
+        if len(resolved_devices) > 1:
+            logger.warning(
+                f"Multiple devices are not supported in {self.__class__.__name__} inference, "
+                f"using the first device {resolved_devices[0]}."
+            )
 
         if tokenizer is None:
             tokenizer = model_name_or_path
         if task == "zero-shot-classification":
             self.model = pipeline(
-                task=task, model=model_name_or_path, tokenizer=tokenizer, device=device, revision=model_version
+                task=task,
+                model=model_name_or_path,
+                tokenizer=tokenizer,
+                revision=model_version,
+                use_auth_token=use_auth_token,
+                device=resolved_devices[0],
             )
         elif task == "text-classification":
             self.model = pipeline(
                 task=task,
                 model=model_name_or_path,
                 tokenizer=tokenizer,
-                device=device,
+                device=resolved_devices[0],
                 revision=model_version,
                 return_all_scores=return_all_scores,
+                use_auth_token=use_auth_token,
             )
         self.return_all_scores = return_all_scores
         self.labels = labels
         self.task = task
         self.batch_size = batch_size
         self.classification_field = classification_field
+        self.progress_bar = progress_bar
 
-    def predict(self, documents: List[Document]) -> List[Document]:
+    def predict(self, documents: List[Document], batch_size: Optional[int] = None) -> List[Document]:
         """
-        Returns documents containing classification result in meta field.
+        Returns documents containing classification result in a meta field.
         Documents are updated in place.
 
-        :param documents: List of Document to classify
-        :return: List of Document enriched with meta information
+        :param documents: A list of Documents to classify.
+        :param batch_size: The number of Documents to classify at a time.
+        :return: A list of Documents enriched with meta information.
         """
+        if batch_size is None:
+            batch_size = self.batch_size
+
         texts = [
             doc.content if self.classification_field is None else doc.meta[self.classification_field]
             for doc in documents
         ]
-        batches = self.get_batches(texts, batch_size=self.batch_size)
-        if self.task == "zero-shot-classification":
-            batched_predictions = [
-                self.model(batch, candidate_labels=self.labels, truncation=True) for batch in batches
-            ]
-        elif self.task == "text-classification":
-            batched_predictions = [
-                self.model(batch, return_all_scores=self.return_all_scores, truncation=True) for batch in batches
-            ]
+        batches = self.get_batches(texts, batch_size=batch_size)
+        batched_predictions = []
+        pb = tqdm(total=len(texts), disable=not self.progress_bar, desc="Generating questions")
+        for batch in batches:
+            if self.task == "zero-shot-classification":
+                batched_prediction = self.model(batch, candidate_labels=self.labels, truncation=True)
+            elif self.task == "text-classification":
+                batched_prediction = self.model(batch, return_all_scores=self.return_all_scores, truncation=True)
+            batched_predictions.append(batched_prediction)
+            pb.update(len(batch))
+        pb.close()
         predictions = [pred for batched_prediction in batched_predictions for pred in batched_prediction]
 
         for prediction, doc in zip(predictions, documents):
@@ -163,8 +196,38 @@ class TransformersDocumentClassifier(BaseDocumentClassifier):
 
         return documents
 
+    def predict_batch(
+        self, documents: Union[List[Document], List[List[Document]]], batch_size: Optional[int] = None
+    ) -> Union[List[Document], List[List[Document]]]:
+        """
+        Returns documents containing classification result in meta field.
+        Documents are updated in place.
+
+        :param documents: List of Documents or list of lists of Documents to classify.
+        :param batch_size: Number of Documents to classify at a time.
+        :return: List of Documents or list of lists of Documents enriched with meta information.
+        """
+        if isinstance(documents[0], Document):
+            documents = self.predict(documents=documents, batch_size=batch_size)  # type: ignore
+            return documents
+        else:
+            number_of_documents = [len(doc_list) for doc_list in documents if isinstance(doc_list, list)]
+            flattened_documents = list(itertools.chain.from_iterable(documents))  # type: ignore
+            docs_with_preds = self.predict(flattened_documents, batch_size=batch_size)
+
+            # Group documents together
+            grouped_documents = []
+            left_idx = 0
+            right_idx = 0
+            for number in number_of_documents:
+                right_idx = left_idx + number
+                grouped_documents.append(docs_with_preds[left_idx:right_idx])
+                left_idx = right_idx
+
+            return grouped_documents
+
     def get_batches(self, items, batch_size):
-        if batch_size == -1:
+        if batch_size is None:
             yield items
             return
         for index in range(0, len(items), batch_size):

@@ -60,6 +60,7 @@ class FAISSDocumentStore(SQLDocumentStore):
         n_links: int = 64,
         ef_search: int = 20,
         ef_construction: int = 80,
+        validate_index_sync: bool = True,
     ):
         """
         :param sql_url: SQL connection URL for database. It defaults to local file based SQLite DB. For large scale
@@ -107,6 +108,7 @@ class FAISSDocumentStore(SQLDocumentStore):
         :param n_links: used only if index_factory == "HNSW"
         :param ef_search: used only if index_factory == "HNSW"
         :param ef_construction: used only if index_factory == "HNSW"
+        :param validate_index_sync: Whether to check that the document count equals the embedding count at initialization time
         """
         # special case if we want to load an existing index from disk
         # load init params from disk and run init again
@@ -131,7 +133,9 @@ class FAISSDocumentStore(SQLDocumentStore):
 
         if vector_dim is not None:
             warnings.warn(
-                "The 'vector_dim' parameter is deprecated, " "use 'embedding_dim' instead.", DeprecationWarning, 2
+                message="The 'vector_dim' parameter is deprecated, use 'embedding_dim' instead.",
+                category=DeprecationWarning,
+                stacklevel=2,
             )
             self.embedding_dim = vector_dim
         else:
@@ -160,7 +164,8 @@ class FAISSDocumentStore(SQLDocumentStore):
             url=sql_url, index=index, duplicate_documents=duplicate_documents, isolation_level=isolation_level
         )
 
-        self._validate_index_sync()
+        if validate_index_sync:
+            self._validate_index_sync()
 
     def _validate_params_load_from_disk(self, sig: Signature, locals: dict):
         allowed_params = ["faiss_index_path", "faiss_config_path", "self"]
@@ -180,8 +185,8 @@ class FAISSDocumentStore(SQLDocumentStore):
         # used when creating the original FAISS index
         if not self.get_document_count() == self.get_embedding_count():
             raise ValueError(
-                "The number of documents present in the SQL database does not "
-                "match the number of embeddings in FAISS. Make sure your FAISS "
+                f"The number of documents present in the SQL database ({self.get_document_count()}) does not "
+                f"match the number of embeddings in FAISS ({self.get_embedding_count()}). Make sure your FAISS "
                 "configuration file correctly points to the same database that "
                 "was used when creating the original index."
             )
@@ -341,7 +346,7 @@ class FAISSDocumentStore(SQLDocumentStore):
             return
 
         logger.info(f"Updating embeddings for {document_count} docs...")
-        vector_id = sum([index.ntotal for index in self.faiss_indexes.values()])
+        vector_id = sum(index.ntotal for index in self.faiss_indexes.values())
 
         result = self._query(
             index=index,

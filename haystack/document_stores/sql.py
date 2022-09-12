@@ -21,7 +21,7 @@ try:
         ForeignKeyConstraint,
     )
     from sqlalchemy.ext.declarative import declarative_base
-    from sqlalchemy.orm import relationship, sessionmaker
+    from sqlalchemy.orm import relationship, sessionmaker, validates
     from sqlalchemy.sql import case, null
 except (ImportError, ModuleNotFoundError) as ie:
     from haystack.utils.import_utils import _optional_component_not_installed
@@ -72,6 +72,17 @@ class MetaDocumentORM(ORMBase):
         ),
         {},
     )  # type: ignore
+
+    valid_metadata_types = (str, int, float, bool, bytes, bytearray, type(None))
+
+    @validates("value")
+    def validate_value(self, key, value):
+        if not isinstance(value, self.valid_metadata_types):
+            raise TypeError(
+                f"Discarded metadata '{self.name}', since it has invalid type: {type(value).__name__}.\n"
+                f"SQLDocumentStore can accept and cast to string only the following types: {', '.join([el.__name__ for el in self.valid_metadata_types])}"
+            )
+        return value
 
 
 class LabelORM(ORMBase):
@@ -376,10 +387,7 @@ class SQLDocumentStore(BaseDocumentStore):
         if len(documents) == 0:
             return
         # Make sure we comply to Document class format
-        if isinstance(documents[0], dict):
-            document_objects = [Document.from_dict(d) if isinstance(d, dict) else d for d in documents]
-        else:
-            document_objects = documents
+        document_objects = [Document.from_dict(d) if isinstance(d, dict) else d for d in documents]
 
         document_objects = self._handle_duplicate_documents(
             documents=document_objects, index=index, duplicate_documents=duplicate_documents
@@ -389,7 +397,12 @@ class SQLDocumentStore(BaseDocumentStore):
             for doc in document_objects[i : i + batch_size]:
                 meta_fields = doc.meta or {}
                 vector_id = meta_fields.pop("vector_id", None)
-                meta_orms = [MetaDocumentORM(name=key, value=value) for key, value in meta_fields.items()]
+                meta_orms = []
+                for key, value in meta_fields.items():
+                    try:
+                        meta_orms.append(MetaDocumentORM(name=key, value=value))
+                    except TypeError as ex:
+                        logger.error(f"Document {doc.id} - {ex}")
                 doc_mapping = {
                     "id": doc.id,
                     "content": doc.to_dict()["content"],

@@ -12,13 +12,8 @@ except (ModuleNotFoundError, ImportError):
 __version__: str = str(metadata.version("farm-haystack"))
 
 
-# This configuration must be done before any import to apply to all submodules
+# Logging is not configured here on purpose, see https://github.com/deepset-ai/haystack/issues/2485
 import logging
-
-logging.basicConfig(
-    format="%(levelname)s - %(name)s -  %(message)s", datefmt="%m/%d/%Y %H:%M:%S", level=logging.WARNING
-)
-logging.getLogger("haystack").setLevel(logging.INFO)
 
 import pandas as pd
 
@@ -79,6 +74,7 @@ from haystack.nodes import (
     retriever,
     summarizer,
     translator,
+    label_generator,
 )
 
 # Note that we ignore the ImportError here because if the user did not install

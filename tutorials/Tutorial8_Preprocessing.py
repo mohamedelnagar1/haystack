@@ -17,6 +17,15 @@ docs = [
 This tutorial will show you all the tools that Haystack provides to help you cast your data into the right format.
 """
 
+import logging
+
+# We configure how logging messages should be displayed and which log level should be used before importing Haystack.
+# Example log message:
+# INFO - haystack.utils.preprocessing -  Converting data/tutorial1/218_Olenna_Tyrell.txt
+# Default log level in basicConfig is WARNING so the explicit parameter is not necessary but can be changed easily:
+logging.basicConfig(format="%(levelname)s - %(name)s -  %(message)s", level=logging.WARNING)
+logging.getLogger("haystack").setLevel(logging.INFO)
+
 # Here are the imports we need
 from pathlib import Path
 
@@ -37,7 +46,7 @@ def tutorial8_preprocessing():
     Haystack's converter classes are designed to help you turn files on your computer into the documents
     that can be processed by the Haystack pipeline.
     There are file converters for txt, pdf, docx files as well as a converter that is powered by Apache Tika.
-    The parameter `valid_langugages` does not convert files to the target language, but checks if the conversion worked as expected.
+    The parameter `valid_languages` does not convert files to the target language, but checks if the conversion worked as expected.
     """
 
     # Here are some examples of how you would use file converters
@@ -68,7 +77,7 @@ def tutorial8_preprocessing():
     # This is a default usage of the PreProcessor.
     # Here, it performs cleaning of consecutive whitespaces
     # and splits a single large document into smaller documents.
-    # Each document is up to 1000 words long and document breaks cannot fall in the middle of sentences
+    # Each document is up to 100 words long and document breaks cannot fall in the middle of sentences
     # Note how the single document passed into the document gets split into 5 smaller documents
 
     preprocessor = PreProcessor(
@@ -76,7 +85,7 @@ def tutorial8_preprocessing():
         clean_whitespace=True,
         clean_header_footer=False,
         split_by="word",
-        split_length=1000,
+        split_length=100,
         split_respect_sentence_boundary=True,
     )
     docs_default = preprocessor.process([doc_txt])

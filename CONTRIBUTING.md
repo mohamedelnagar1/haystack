@@ -4,95 +4,210 @@ We are very open to community contributions and appreciate anything that improve
 To avoid unnecessary work on either side, please stick to the following process:
 
 1. Check if there is already [a related issue](https://github.com/deepset-ai/haystack/issues).
-2. Open a new issue to start a quick discussion. Some features might be a nice idea, but don't fit in the scope of Haystack and we hate to close finished PRs!
-3. Create a pull request in an early draft version and ask for feedback. If this is your first pull request and you wonder how to actually create a pull request, checkout [this manual](https://opensource.com/article/19/7/create-pull-request-github).
-4. Verify that all tests in the CI pass (and add new ones if you implement anything new)
+2. If not, open a new issue to start a quick discussion. Some features might be a nice idea, but don't fit in the scope of Haystack and we hate to close finished PRs!
+3. Once you're ready to start, setup you development environment (see below).
+4. Once you have commits to publish, create a draft pull request with the initial sketch of the implementation and ask for feedback. **Do not wait until the feature is complete!** If this is your first pull request and you wonder how to actually create a pull request, checkout [this manual](https://opensource.com/article/19/7/create-pull-request-github).
+5. Verify that all tests in the CI pass (and add new ones if you implement anything new).
+
+
+## Setting up your development environment
+
+Even though Haystack runs on Linux, MacOS and Windows, we current we mostly support development on Linux and MacOS. Windows contributors might encounter issues. To work around these, consider using [WSL](https://docs.microsoft.com/en-us/windows/wsl/about) for contributing to Haystack.
+
+The following instructions are **tested on Linux (Ubuntu).**
+
+### Prerequisites
+
+Before starting, make sure your system packages are up-to-date and that a few dependencies are installed. From the terminal, run:
+
+```bash
+sudo apt update && sudo apt-get install libsndfile1 ffmpeg
+```
+
+You might need to install additional dependencies, depending on what exactly you will be working with. Refer to the relevant node's documentation to understand which dependencies are required.
+
+### Installation
+
+Now fork and clone the repo. From the terminal, run:
+
+```bash
+git clone https://github.com/<your-gh-username>/haystack.git
+```
+
+or use your favourite Git(Hub) client.
+
+Then move into the cloned folder, create a virtualenv, and perform an **editable install**.
+
+```bash
+# Move into the cloned folder
+cd haystack/
+
+# Create a virtual environment
+python3 -m venv venv
+
+# Activate the environment
+source venv/bin/activate
+
+# Upgrade pip (very important!)
+pip install --upgrade pip
+
+# Install Haystack in editable mode
+pip install -e '.[dev]'
+```
+Note that the `.[dev]` part is enough in many development scenarios when adding minor code fixes. However, if your changes require a schema change, then you'll need to install all dependencies with `pip install -e '.[all]' ` command. Introducing new components or changing their interface requires a schema change.
+This will install all the dependencies you need to work on the codebase, plus testing and formatting dependencies.
+
+Last, install the pre-commit hooks with:
+
+```bash
+pre-commit install
+```
+
+This utility will run some tasks right before all `git commit` operations. From now on, your `git commit` output for Haystack should look something like this:
+
+```
+> git commit -m "test"
+check python ast.....................................(no files to check)Skipped
+check json...........................................(no files to check)Skipped
+check yaml...............................................................Passed
+check toml...........................................(no files to check)Skipped
+fix end of files.........................................................Passed
+trim trailing whitespace.................................................Passed
+check for merge conflicts................................................Passed
+check that scripts with shebangs are executable..........................Passed
+mixed line ending........................................................Passed
+don't commit to branch...................................................Passed
+pretty format json...................................(no files to check)Skipped
+black................................................(no files to check)Skipped
+Update API documentation (slow)..........................................Passed
+[my-branch bc7f4af7] test
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+```
+
+Note: If you prefer you can run this hook before `git push` instead of `git commit`. To do so, install the hook with `pre-commit install --hook-type pre-push`
+
+Note: pre-commit hooks might fail. If that happens to you and you can't understand why, please do the following:
+- Ask for help by opening an issue or reaching out on our Discord channel. We usually give some feedback within a day for most questions.
+- As the last resort, if you are desperate and everything failed, ask Git to skip the hook with `git commit --no-verify`. This command will suspend all pre-commit hooks and let you push in all cases. The CI might fail, but at that point we will be able to help.
+- In case of further issues pushing your changes, please uninstall the hook with `pre-commit uninstall -t pre-commit -t pre-push` and review your Git setup.
 
 ## Formatting of Pull Requests
 
-Please give a concise description in the first comment in the PR that includes: 
+### PR Title
+We use elements from the [conventional commit convention](https://www.conventionalcommits.org/en/v1.0.0/) for our
+PR titles. Your PR title should follow the same structure of commit type, scope, and description as the convention
+specifies:
+
+```
+<type>[optional scope]: <description>
+```
+
+Common types are:
+- `feat` (for enhancements)
+- `bug` (for bug fixes)
+- `docs` (for changes to the documentation)
+- `test` (for changes to the tests)
+- `perf` (for performance improvements)
+- `refactor` (for code refactorings)
+
+If your change is breaking backwards compatibility (e.g. introducing a new required parameter) use a `!` after the type
+to indicate that your PR contains breaking changes.
+
+Examples:
+- `feat: add pinecone document store`
+- `bug: fix MultiLabel serialization`
+- `feat!: make all document store methods async`
+
+### PR Description
+Please use the existing [pull request template](https://github.com/deepset-ai/haystack/blob/main/.github/pull_request_template.md)
+for describing and documenting your changes:
+
+- Link the issue that this relates to
 - What is changing?
-- Why? 
 - What are limitations?
 - Breaking changes (Example of before vs. after)
-- Link the issue that this relates to
+- How did you test the change?
 
-## Running tests
+## CI (Continuous Integration)
 
-### CI
-Tests will automatically run in our CI for every commit you push to your PR. This is the most convenient way for you and we encourage you to create early "draft pull requests".
+We use GitHub Action for our Continuous Integration tasks. This means that, as soon as you open a PR, GitHub will start executing some workflows on your code, like automated tests, linting, formatting, api docs generation, etc.
 
-#### Forks
-Some actions in our CI (code style and documentation updates) will run on your code and occasionally commit back small changes after a push. To be able to do so,
-these actions are configured to run on your fork instead of on the base repository. To allow those actions to run, please don't forget to:
+If all goes well, at the bottom of your PR page you should see something like this, where all checks are green.
 
-1. Enable actions on your fork with read and write permissions:
+![Successful CI](docs/img/ci-success.png)
 
-<p align="center"><img src="https://raw.githubusercontent.com/deepset-ai/haystack/master/docs/img/fork_action_config.png"></p>
+If you see some red checks (like the following), then something didn't work, and action is needed from your side.
 
-2. Verify that "Allow edits and access to secrets by maintainers" on the PR preview page is checked (you can check it later on the PR's sidebar once it's created).
+![Failed CI](docs/img/ci-failure-example.png)
 
-<p align="center"><img src="https://raw.githubusercontent.com/deepset-ai/haystack/master/docs/img/first_time_contributor_enable_access.png"></p>
+Click on the failing test and see if there are instructions at the end of the logs of the failed test.
+For example, in the case above, the CI will give you instructions on how to fix the issue.
+
+![Logs of failed CI, with instructions for fixing the failure](docs/img/ci-failure-example-instructions.png)
+
+## Working from Github forks
+
+In order for maintainers to be able to help you, we usually ask contributors to give us push access to their fork.
+
+To do so, please verify that "Allow edits and access to secrets by maintainers" on the PR preview page is checked (you can check it later on the PR's sidebar once it's created).
+
+![Allow access to your branch to maintainers](docs/img/first_time_contributor_enable_access.png)
 
 
-3. Make sure the branch of your fork where you push your changes is not called `master`. If it is, either change its name or remember to manually trigger the `Code & Documentation Updates` action after a push.
+## Running the tests
 
-### Local
-However, you can also run the tests locally by executing pytest in your terminal from the `/test` folder.
+Tests will automatically run in our CI for every commit you push to your PR on Github. This is usually the most convenient
+way and we encourage you to create early "draft pull requests" to leverage the CI at an early stage.
 
-#### Running all tests
-**Important**: If you want to run **all** tests locally, you'll need **all** document stores running in the background before you run the tests.
-Many of the tests will then be executed multiple times with different document stores.
+Tests can also be executed locally, by launching `pytest` from the `/test` folder (this is important because running from the
+root folder would also execute the ui and rest API tests, that require specific dependencies).
 
-You can launch them like this:
+You can control which tests to run using Pytest markers, let's see how.
+
+### Running a subset of tests (recommended)
+
+In most cases you rather want to run a **subset of tests** locally that are related to your dev, and the most important
+option to reduce the number of tests in a meaningful way, is to run tests only for a list of **selected document stores**.
+This is possible by adding the `--document_store_type` arg to your `pytest` command (possible values are: `"elasticsearch, faiss, memory, milvus, weaviate, pinecone"`).
+
+For example, calling `pytest . --document_store_type="memory"` will run all the document store tests using the
+InMemoryDocumentStore only, skipping the others (the logs will show which ones). The `InMemoryDocument` store is a very
+good starting point as it doesn't require any external resource:
+```
+pytest . --document_store_type="memory"
+```
+
+You can also run the tests using a **combination of document stores**, provided the corresponding services are up and
+running in your local environment. For example, Elasticsearch must be running before launching the following:
+```
+pytest . --document_store_type="memory,elasticsearch"
+```
+
+**Note:** we recommend using Docker containers to run document stores locally:
 ```
 # Elasticsearch
-docker run -d -p 9200:9200 -e "discovery.type=single-node" -e "ES_JAVA_OPTS=-Xms128m -Xmx128m" elasticsearch:7.9.2
+docker run -d -p 9200:9200 -e "discovery.type=single-node" -e "ES_JAVA_OPTS=-Xms128m -Xmx256m" elasticsearch:7.9.2
 
 # Milvus
 wget https://github.com/milvus-io/milvus/releases/download/v2.0.0/milvus-standalone-docker-compose.yml -O docker-compose.yml
 docker-compose up -d
 
 # Weaviate
-docker run -d -p 8080:8080 --name haystack_test_weaviate --env AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED='true' --env PERSISTENCE_DATA_PATH='/var/lib/weaviate' semitechnologies/weaviate:1.11.0
+docker run -d -p 8080:8080 --name haystack_test_weaviate --env AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED='true' --env PERSISTENCE_DATA_PATH='/var/lib/weaviate' --env ENABLE_EXPERIMENTAL_BM25='true' semitechnologies/weaviate:1.14.1
 
 # GraphDB
 docker run -d -p 7200:7200 --name haystack_test_graphdb deepset/graphdb-free:9.4.1-adoptopenjdk11
 
 # Tika
-docker run -d -p 9998:9998 -e "TIKA_CHILD_JAVA_OPTS=-JXms128m" -e "TIKA_CHILD_JAVA_OPTS=-JXmx128m" apache/tika:1.24.1
-```
-Then run all tests:
-```
-cd test
-pytest
+docker run -d -p 9998:9998 -e "TIKA_CHILD_JAVA_OPTS=-JXms128m" -e "TIKA_CHILD_JAVA_OPTS=-JXmx128m" apache/tika:1.28.4
 ```
 
-#### Recommendation: Running a subset of tests
-In most cases you rather want to run a **subset of tests** locally that are related to your dev:
-
-The most important option to reduce the number of tests in a meaningful way, is to shrink the "test grid" of document stores.
-This is possible by adding the `--document_store_type` arg to your pytest command. Possible values are: `"elasticsearch, faiss, memory, milvus, weaviate"`.
-For example, calling `pytest . --document_store_type="memory"` will run all tests that can be run with the InMemoryDocumentStore, i.e.: 
-- all the tests that we typically run on the whole "document store grid" will only be run for InMemoryDocumentStore
-- any test that is specific to other document stores (e.g. elasticsearch) and is not supported by the chosen document store will be skipped (and marked in the logs accordingly)
-
-
-Run tests that are possible for a **selected document store**. The InMemoryDocument store is a very good starting point as it doesn't require any of the external docker containers from above: 
-```
-pytest . --document_store_type="memory"
-```
-Run tests using a **combination of document stores**:
-```
-pytest . --document_store_type="memory,elasticsearch"
-```
-*Note: You will need to launch the elasticsearch container here as described above'*
-
-Just run **one individual test**:
+Tests can be also run **individually**:
 ```
 pytest -v test_retriever.py::test_dpr_embedding
 ```
-Select a **logical subset of tests** via markers and the optional "not" keyword:
+
+Or you can select a **logical subset of tests** via markers and the optional "not" keyword:
 ```
 pytest -m not elasticsearch
 pytest -m elasticsearch
@@ -102,14 +217,63 @@ pytest -m not slow
 ...
 ```
 
+### Running all the tests
+
+**Important**: If you want to run **all** the tests locally, you'll need **all** document stores running in the background
+before you run the tests. Many of the tests will then be executed multiple times with different document stores.
+
+To run all tests, from the `/test` folder just run:
+```
+pytest
+```
 
 ## Writing tests
 
-If you are writing a test that depend on a document store, there are a few conventions to define on which document store type this test should/can run:
+We formally define three scopes for tests in Haystack with different requirements and purposes:
 
-### Option 1: The test should run on all document stores / those supplied in the CLI arg `--document_store_type`: 
+### Unit test
+- Tests a single logical concept
+- Execution time is a few milliseconds
+- Any external resource is mocked
+- Always returns the same result
+- Can run in any order
+- Runs at every commit in draft and ready PRs, automated through pytest
+- Can run locally with no additional setup
+- **Goal: being confident in merging code**
+
+### Integration test
+- Tests a single logical concept
+- Execution time is a few seconds
+- It uses external resources that must be available before execution
+- When using models, cannot use inference
+- Always returns the same result or an error
+- Can run in any order
+- Runs at every commit in ready PRs, automated through pytest
+- Can run locally with some additional setup (e.g. Docker)
+- **Goal: being confident in merging code**
+
+### End to End (e2e) test
+- Tests a sequence of multiple logical concepts
+- Execution time has no limits (can be always on)
+- Can use inference
+- Evaluates the results of the execution or the status of the system
+- It uses external resources that must be available before execution
+- Can return different results
+- Can be dependent on the order
+- Can be wrapped into any process execution
+- Runs outside the development cycle (nightly or on demand)
+- Might not be possible to run locally due to system and hardware requirements
+- **Goal: being confident in releasing Haystack**
+
+> **Note**: migrating the existing tests into these new categories is still in progress. Please ask the maintainers if you are in doubt about how to 
+classify your tests or where to place them.
+
+If you are writing a test that depend on a document store, there are a few conventions to define on which document store
+type this test should/can run:
+
+### Option 1: The test should run on all document stores / those supplied in the CLI arg `--document_store_type`:
 Use one of the fixtures `document_store` or `document_store_with_docs` or `document_store_type`.
-Do not parameterize it yourself. 
+Do not parameterize it yourself.
 
 Example:
 ```
@@ -120,7 +284,8 @@ def test_write_with_duplicate_doc_ids(document_store):
 
 ```
 
-### Option 2: The test is only compatible with certain document stores: 
+### Option 2: The test is only compatible with certain document stores:
+
 Some tests you don't want to run on all possible document stores. Either because the test is specific to one/few doc store(s) or the test is not really document store related and it's enough to test it on one document store and speed up the execution time.
 
 Example:
@@ -130,7 +295,7 @@ Example:
 @pytest.mark.parametrize("document_store", ["elasticsearch", "faiss"], indirect=True)
 def test_update_meta(document_store):
     ....
-``` 
+```
 
 ### Option 3: The test is not using a `document_store`/ fixture, but still has a hard requirement for a certain document store:
 
@@ -142,27 +307,31 @@ def test_elasticsearch_custom_fields(elasticsearch_fixture):
     client.indices.delete(index='haystack_test_custom', ignore=[404])
     document_store = ElasticsearchDocumentStore(index="haystack_test_custom", text_field="custom_text_field",
                                                 embedding_field="custom_embedding_field")
-``` 
+```
 
 
 ## Code format and style
-We use [Black](https://github.com/psf/black) to ensure consistent code style, [mypy](http://mypy-lang.org/) for static type checking and 
+
+We use [Black](https://github.com/psf/black) to ensure consistent code style, [mypy](http://mypy-lang.org/) for static type checking and
 [pylint](https://pylint.org/) for linting and code quality.
 
 All checks and autoformatting happen on the CI, so in general you don't need to worry about configuring them in your local environment.
 However, should you prefer to execute them locally, here are a few details about the setup.
 
 ### Black
-Black runs with no other configuration than an increase line lenght to 120 characters. Its condiguration can be found in `pyproject.toml`.
+
+Black runs with no other configuration than increasing line length to 120 characters. Its configuration can be found in `pyproject.toml`.
 
 You can run it with `python -m black .` from the root folder.
 
 ### Mypy
-Mypy currently runs with limited configuration options that can be found at the bottom of `setup.cfg`.
+
+Mypy currently runs with limited configuration options that can be found at the bottom of `pyproject.toml`.
 
 You can run it with `python -m mypy haystack/ rest_api/ ui/` from the root folder.
 
 ### Pylint
+
 Pylint is still being integrated in Haystack. The current exclusion list is very long, and can be found in `pyproject.toml`.
 
 You can run it with `python -m pylint haystack/ rest_api/ ui/ -ry` from the root folder.
@@ -170,8 +339,8 @@ You can run it with `python -m pylint haystack/ rest_api/ ui/ -ry` from the root
 
 ## Contributor Licence Agreement (CLA)
 
-Significant contributions to Haystack require a Contributor License Agreement (CLA). If the contribution requires a CLA, we will get in contact with you. CLAs are quite common among company backed open-source frameworks and our CLA’s wording is similar to other popular projects, like [Rasa](https://cla-assistant.io/RasaHQ/rasa) or [Google's Tensorflow](https://cla.developers.google.com/clas/new?domain=DOMAIN_GOOGLE&kind=KIND_INDIVIDUAL) (retrieved 4th November 2021). 
+Significant contributions to Haystack require a Contributor License Agreement (CLA). If the contribution requires a CLA, we will get in contact with you. CLAs are quite common among company backed open-source frameworks and our CLA’s wording is similar to other popular projects, like [Rasa](https://cla-assistant.io/RasaHQ/rasa) or [Google's Tensorflow](https://cla.developers.google.com/clas/new?domain=DOMAIN_GOOGLE&kind=KIND_INDIVIDUAL) (retrieved 4th November 2021).
 
 The agreement's main purpose is to protect the continued open use of Haystack. At the same time it also helps in protecting you as a contributor. Contributions under this agreement will ensure that your code will continue to be open to everyone in the future (“You hereby grant to Deepset **and anyone** [...]”) as well as removing liabilities on your end (“you provide your Contributions on an AS IS basis, without warranties or conditions of any kind [...]”). You can find the Contributor Licence Agreement [here](https://cla-assistant.io/deepset-ai/haystack).
 
-If you have further questions about the licensing feel free to reach out to contributors@deepset.ai. 
+If you have further questions about the licensing feel free to reach out to contributors@deepset.ai.

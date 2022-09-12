@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 
 from abc import abstractmethod
 
@@ -23,9 +23,18 @@ class BaseSummarizer(BaseComponent):
                                         If set to "True", all docs will be joined to a single string that will then
                                         be summarized.
                                         Important: The summary will depend on the order of the supplied documents!
-        :return: List of Documents, where Document.text contains the summarization and Document.meta["context"]
+        :return: List of Documents, where Document.content contains the summarization and Document.meta["context"]
                  the original, not summarized text
         """
+        pass
+
+    @abstractmethod
+    def predict_batch(
+        self,
+        documents: Union[List[Document], List[List[Document]]],
+        generate_single_summary: Optional[bool] = None,
+        batch_size: Optional[int] = None,
+    ) -> Union[List[Document], List[List[Document]]]:
         pass
 
     def run(self, documents: List[Document], generate_single_summary: Optional[bool] = None):  # type: ignore
@@ -36,3 +45,16 @@ class BaseSummarizer(BaseComponent):
             results["documents"] = self.predict(documents=documents, generate_single_summary=generate_single_summary)
 
         return results, "output_1"
+
+    def run_batch(  # type: ignore
+        self,
+        documents: Union[List[Document], List[List[Document]]],
+        generate_single_summary: Optional[bool] = None,
+        batch_size: Optional[int] = None,
+    ):
+
+        results = self.predict_batch(
+            documents=documents, generate_single_summary=generate_single_summary, batch_size=batch_size
+        )
+
+        return {"documents": results}, "output_1"

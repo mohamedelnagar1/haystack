@@ -1,12 +1,17 @@
+import logging
+
+# We configure how logging messages should be displayed and which log level should be used before importing Haystack.
+# Example log message:
+# INFO - haystack.utils.preprocessing -  Converting data/tutorial1/218_Olenna_Tyrell.txt
+# Default log level in basicConfig is WARNING so the explicit parameter is not necessary but can be changed easily:
+logging.basicConfig(format="%(levelname)s - %(name)s -  %(message)s", level=logging.WARNING)
+logging.getLogger("haystack").setLevel(logging.INFO)
+
 from haystack.document_stores import ElasticsearchDocumentStore
 
 from haystack.nodes import EmbeddingRetriever
 from haystack.utils import launch_es, print_answers, fetch_archive_from_http
 import pandas as pd
-import requests
-import logging
-import subprocess
-import time
 
 
 def tutorial4_faq_style_qa():
@@ -48,7 +53,10 @@ def tutorial4_faq_style_qa():
     # We can use the `EmbeddingRetriever` for this purpose and specify a model that we use for the embeddings.
     #
     retriever = EmbeddingRetriever(
-        document_store=document_store, embedding_model="sentence-transformers/all-MiniLM-L6-v2", use_gpu=True
+        document_store=document_store,
+        embedding_model="sentence-transformers/all-MiniLM-L6-v2",
+        use_gpu=True,
+        scale_score=False,
     )
 
     # Download a csv containing some FAQ data

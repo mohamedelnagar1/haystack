@@ -6,6 +6,15 @@
 #
 # If you are interested in more feature-rich Elasticsearch, then please refer to the Tutorial 1.
 
+import logging
+
+# We configure how logging messages should be displayed and which log level should be used before importing Haystack.
+# Example log message:
+# INFO - haystack.utils.preprocessing -  Converting data/tutorial1/218_Olenna_Tyrell.txt
+# Default log level in basicConfig is WARNING so the explicit parameter is not necessary but can be changed easily:
+logging.basicConfig(format="%(levelname)s - %(name)s -  %(message)s", level=logging.WARNING)
+logging.getLogger("haystack").setLevel(logging.INFO)
+
 from haystack.document_stores import InMemoryDocumentStore, SQLDocumentStore
 from haystack.nodes import FARMReader, TransformersReader, TfidfRetriever
 from haystack.utils import clean_wiki_text, convert_files_to_docs, fetch_archive_from_http, print_answers
@@ -42,7 +51,7 @@ def tutorial3_basic_qa_pipeline_without_elasticsearch():
     # Now, let's write the docs to our DB.
     document_store.write_documents(docs)
 
-    # ## Initalize Retriever, Reader & Pipeline
+    # ## Initialize Retriever, Reader & Pipeline
     #
     # ### Retriever
     #
