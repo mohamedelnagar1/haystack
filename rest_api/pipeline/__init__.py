@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 UNSUPPORTED_DOC_STORES = (FAISSDocumentStore, InMemoryDocumentStore)
 
 
-def setup_pipelines() -> Dict[str, Any]:
+def setup_pipelines():
     # Re-import the configuration variables
     from rest_api import config  # pylint: disable=reimported
 

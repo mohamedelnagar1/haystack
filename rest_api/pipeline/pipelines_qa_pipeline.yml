@@ -1,15 +1,17 @@
 version: '1.3.1rc0'
 
-components:    # define all the building-blocks for Pipeline
+components:    # define all the building-blocks for Pipeline 
   - name: DocumentStore
     type: ElasticsearchDocumentStore
     params:
       host: localhost
+
   - name: Retriever
     type: ElasticsearchRetriever #EmbeddingRetriever
     params:
       document_store: DocumentStore    # params can reference other components defined in the YAML
       top_k: 5
+
   - name: Reader       # custom-name for the component; helpful for visualization & debugging
     type: FARMReader    # Haystack Class name for the component
     params:
@@ -25,10 +27,12 @@ components:    # define all the building-blocks for Pipeline
       split_length: 1000
 
 pipelines:
-  - name: query    # a sample extractive-qa Pipeline
+  - name: query
     nodes:
-      - name: Retriever
+      - name: LowerText
         inputs: [Query]
+      - name: Retriever
+        inputs: [LowerText]
       - name: Reader
         inputs: [Retriever]
 
@@ -41,4 +45,23 @@ pipelines:
       - name: Retriever
         inputs: [Preprocessor]
       - name: DocumentStore
-        inputs: [Retriever]      
+        inputs: [Retriever]
+
+# # pipeline for QA generation
+#   - name: indexing
+#     nodes:
+#       - name: WikiDataLoader
+#         inputs: [File]
+#       - name: Preprocessor
+#         inputs: [WikiDataLoader]
+#       - name:   
+#       - name: Retriever
+#         inputs: [Preprocessor]
+#       - name: QuestionGenerationPipeline
+#         inputs: [Retriever]
+#       - name: DocumentStore
+#         inputs: [QuestionGenerationPipeline]  
+
+
+
+

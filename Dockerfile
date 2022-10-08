@@ -2,7 +2,7 @@ FROM python:3.7.4-stretch
 
 WORKDIR /home/user
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y apt-transport-https \
     curl  \
     git  \
     pkg-config  \
@@ -26,8 +26,8 @@ COPY rest_api /home/user/rest_api/
 
 # Install package
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir .[docstores,crawler,preprocessing,ocr,ray]
-RUN pip install --no-cache-dir rest_api/
+RUN pip install .[docstores,crawler,preprocessing,ocr,ray]
+RUN pip install rest_api/
 RUN ls /home/user
 RUN pip freeze
 RUN python3 -c "from haystack.utils.docker import cache_models;cache_models()"

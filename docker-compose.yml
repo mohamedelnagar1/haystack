@@ -10,7 +10,7 @@ services:
     #   - ./rest_api/pipeline:/home/user/rest_api/pipeline
     ports:
       - 8000:8000
-    #restart: on-failure
+    restart: on-failure
     environment:
       # See rest_api/pipeline/pipelines.haystack-pipeline.yml for configurations of Search & Indexing Pipeline.
       - DOCUMENTSTORE_PARAMS_HOST=elasticsearch
@@ -29,7 +29,7 @@ services:
     image: "elasticsearch:7.9.2"
     ports:
       - 9200:9200
-    #restart: on-failure
+    restart: on-failure
     environment:
       - discovery.type=single-node
   # ui:
