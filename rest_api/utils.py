@@ -12,7 +12,7 @@ app = None
 pipelines = None
 
 
-def get_app() -> FastAPI:
+def get_app():
     """
     Initializes the App object and creates the global pipelines as possible.
     """
@@ -60,7 +60,7 @@ def get_pipelines():
     return pipelines
 
 
-def get_openapi_specs() -> dict:
+def get_openapi_specs():
     """
     Used to autogenerate OpenAPI specs file to use in the documentation.
 
