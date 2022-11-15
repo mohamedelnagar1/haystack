@@ -240,9 +240,8 @@ class WikiDataLoader(BaseComponent):
             for item in qa_list:
                 question = item['question']
                 meta = {'page': content['page'], 'title': content['title'], 'path': content['path'], 'answer': item['answer']}
-                documents.append(Document(content=question, meta=meta))
-                print(documents)        
-        
+                documents.append(Document(content=question, meta=meta))        
+       
         return documents
 
 class LowerText(BaseComponent):
